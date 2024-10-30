@@ -21,3 +21,11 @@ orcid = "https://orcid.org/0009-0003-4290-2942"
 name = "Vera C. Rubin Observatory Project Office"
 internal_id = "RubinObs"
 address = "950 N. Cherry Ave., Tucson, AZ 85719, USA"
+[[technote.authors]]
+name = {given = "Tim", family = "Jenness"}
+internal_id = "jennesst"
+orcid = "https://orcid.org/0000-0001-5982-167X"
+[[technote.authors.affiliations]]
+name = "Vera C. Rubin Observatory Project Office"
+internal_id = "RubinObs"
+address = "950 N. Cherry Ave., Tucson, AZ 85719, USA"

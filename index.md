@@ -1,13 +1,15 @@
 # SIAv2 over Butler FastAPI service
 
 ```{abstract}
-In this technote we describe a proposed design for implementing an IVOA Simple Image Access Version 2.0 service directly over a Butler repository using a Safir/FastAPI application and the dax_obscore package. 
+In this technote we describe a proposed design for implementing an IVOA Simple Image Access Version 2.0 service directly over a Butler repository using a Safir/FastAPI application and the dax_obscore package.
 ```
 
 ## 1. Introduction
 
-
-The existing CADC-based implementation which uses the ObsCore table is limited by the fact that QServ does not support certain ADQL functions required by the implementation, specifically the <em>INTERSECTS</em> function. This alternative approach circumvents this by using the [Butler](https://github.com/lsst/daf_butler) & [dax_obscore](https://github.com/lsst-dm/dax_obscore) package to generate the links for a given query without requiring access through the [ObsCore](https://www.ivoa.net/documents/ObsCore/) table. This has several potential benefits including performance, simplicity & decoupling of the various components, allowing Butler changes to take immediate effect and appear in the ObsCore results, without having to be first propagated to the <em>ivoa.ObsCore</em> Table.
+The IVOA Simple Image Access version 2.0 protocol {cite:p}`2015ivoa.spec.1223D` provides a simple way to access image resources without needing to understand a query language.
+The existing CADC-based implementation which uses the ObsCore table is limited by the fact that QServ does not support certain ADQL functions required by the implementation, specifically the <em>INTERSECTS</em> function.
+This alternative approach circumvents this by using the [Butler](https://github.com/lsst/daf_butler) {cite:p}`2022SPIE12189E..11J` & [dax_obscore](https://github.com/lsst-dm/dax_obscore) package to generate the links for a given query without requiring access through the [ObsCore](https://www.ivoa.net/documents/ObsCore/) table.
+This has several potential benefits including performance, simplicity & decoupling of the various components, allowing Butler changes to take immediate effect and appear in the ObsCore results, without having to be first propagated to the <em>ivoa.ObsCore</em> Table.
 
 ## 2. Prototype Requirements
 
@@ -33,20 +35,24 @@ This design satisfies the following high-level goals:
 
 The SIAv2 application will be another FastAPI Python service running in the RSP as Kubernetes a deployment, and will as other services use Gafaelfawr for authentication and authorization.
 
-Queries to the SIAv2 query endpoint will interface with and interact with the <em>dax_obscore</em> middleware package which uses <em>Butler</em> to fetch the relevant image links and return them in the ObsCore format expected by the SIA v2 protocol. 
+Queries to the SIAv2 query endpoint will interface with and interact with the <em>dax_obscore</em> middleware package which uses <em>Butler</em> to fetch the relevant image links and return them in the ObsCore format expected by the SIA v2 protocol.
 
 The SIA service will support multiple Butler repository configurations, with two access modes:
 
 1. Direct Mode: Will connect directly to Butler's PostgreSQL database, requiring credential configuration through Phalanx
-2. Remote (Client/Server) Mode: Will use Butler's client/server interface, requiring no additional credentials. In this case authentication is handled by parsing the user token and attaching it to the request to the Butler server. 
+2. Remote (Client/Server) Mode: Will use Butler's client/server interface, requiring no additional credentials.
+   In this case authentication is handled by parsing the user token and attaching it to the request to the Butler server.
 
-The Butler access mode will be specified in the Phalanx configuration to ensure proper secret management for Direct Mode connections. Individual repository configurations will specify their mode type, which will be used by the Butler Factory to instantiate the appropriate Butler object.
-The service implementation will abstract the Butler access mode from application logic where possible. During startup, frequently accessed data like repository-specific ObsCore configurations will be cached to optimize performance.
+The Butler access mode will be specified in the Phalanx configuration to ensure proper secret management for Direct Mode connections.
+Individual repository configurations will specify their mode type, which will be used by the Butler Factory to instantiate the appropriate Butler object.
+The service implementation will abstract the Butler access mode from application logic where possible.
+During startup, frequently accessed data like repository-specific ObsCore configurations will be cached to optimize performance.
 
 
 Initially no persistent storage will be required as the results will be streamed to the HTTP client but not stored locally.
 
-The initial implementation will use a single-tier architecture without worker nodes, as the Butler server handles the intensive computations. Performance bottlenecks are expected to be primarily I/O-bound, so the service is designed with asynchronous support where possible.
+The initial implementation will use a single-tier architecture without worker nodes, as the Butler server handles the intensive computations.
+Performance bottlenecks are expected to be primarily I/O-bound, so the service is designed with asynchronous support where possible.
 While the current middleware packages don't support async operations, we've implemented a future-proof design:
 
 - Query processing logic will  be encapsulated in a method that can operate either synchronously or asynchronously.
@@ -69,30 +75,36 @@ System overview
 
 Summary of the SIA v2 protocol from https://www.ivoa.net/documents/SIA/:
 
-The SIAv2 IVOA standard defines a web service interface for discovering and retrieving image data from archives and data collections. 
+The SIAv2 IVOA standard defines a web service interface for discovering and retrieving image data from archives and data collections.
 
-It enables users to search for images based on various metadata criteria, such as sky position, time of observation, wavelength range, etc. 
+It enables users to search for images based on various metadata criteria, such as sky position, time of observation, wavelength range, etc.
 The protocol defines a core set of query parameters and response metadata, but also allows for extensions to support additional features or data types as needed by specific archives or communities.
-SIA services are implemented as RESTful web services with a {query} resource for data discovery and an optional {metadata} resource for obtaining detailed dataset metadata conforming to the ImageDM. Both of these resources are synchronous resources conforming to the DALI-sync [1] specification. 
+SIA services are implemented as RESTful web services with a {query} resource for data discovery and an optional {metadata} resource for obtaining detailed dataset metadata conforming to the ImageDM.
+Both of these resources are synchronous resources conforming to the DALI-sync [1] specification.
 
-An SIA service must have at least one {query} resource; it could have multiple {query} resources (e.g. to support alternate authentication schemes where the path is different).
+An SIA service must have at least one {query} resource; it could have multiple {query} resources (e.g., to support alternate authentication schemes where the path is different).
 
 
 Required Endpoints:
 
 - **{query}**
-There is no requirement on what to name this endpoint. This assumes that the endpoint can be found via the capabilities endpoint.
+There is no requirement on what to name this endpoint.
+This assumes that the endpoint can be found via the capabilities endpoint.
 This endpoint is synchronous and params can be submitted either via POST or GET HTTP requests
 - **/availability**
 Return the appropriate response indicating whether the status is currently available or not for use
 - **/capabilities**
-List the capabilities of the service in the standard VOSI capabilities XML format. 
+List the capabilities of the service in the standard VOSI capabilities XML format.
 An example of the minimum capabilities expected can be found here:
 
 
 The specification also defines a list of parameters and states that:
 
-<em>All parameters for the {query} resource defined below must be supported by the service. Services must accept parameters and apply the constraints such that if a (ObsCore) record does not satisfy the constraints it is not included in the response. If the metadata for a field is not known (null), the constraint cannot be satisfied. The ObsCore data model [7] defines which fields may be null and which must have a value. For example, if dataset(s) have unknown time coverage (t_min and t_max in ObsCore), a query with the TIME parameter must not return the record(s); queries without the TIME constraint could still return such records, so the caller can discover such dataset(s).</em>
+<em>All parameters for the {query} resource defined below must be supported by the service.
+Services must accept parameters and apply the constraints such that if a (ObsCore) record does not satisfy the constraints it is not included in the response.
+If the metadata for a field is not known (null), the constraint cannot be satisfied.
+The ObsCore data model [7] defines which fields may be null and which must have a value.
+For example, if dataset(s) have unknown time coverage (`t_min` and `t_max` in ObsCore), a query with the TIME parameter must not return the record(s); queries without the TIME constraint could still return such records, so the caller can discover such dataset(s).</em>
 
 Client requests may include zero or more of the query parameters.
 
@@ -108,7 +120,7 @@ The service frontend providing the SIAv2 API will use the FastAPI framework.
 
 **HTTP Method**: GET & POST
 
-**Parameters**: 
+**Parameters**:
 <table class="custom-table" style="max-width:100%; white-space: collapse;">
   <thead>
     <tr>
@@ -132,7 +144,7 @@ The service frontend providing the SIAv2 API will use the FastAPI framework.
       <td>Units: meters<br>Can be a single value or a value pair.<br>+Inf/-Inf must be supported in pairs.</td>
       <td>em_min, em_max</td>
       <td>As expected;<br><strong>critical MVP capability</strong>.</td>
-      <td>Typically not explicitly available; mapped from filter band.<br>Expecting to use 50%-throughput points of the filter curves, but...</td>
+      <td>Butler understands filter name for single-epoch images and bands for co-adds. Configuration maps wavelengths to filter and thence to band.</td>
     </tr>
     <tr>
       <td><strong>TIME</strong></td>
@@ -174,7 +186,7 @@ The service frontend providing the SIAv2 API will use the FastAPI framework.
       <td>Units: seconds<br>Must be a value pair.<br>+Inf/-Inf must be supported.</td>
       <td>t_exptime</td>
       <td>Should work as expected.</td>
-      <td>Unclear whether this is directly queryable. <a href="https://rubinobs.atlassian.net/wiki/people/63e809f7db4f715c97259960?ref=confluence">Tim Jenness</a>?</td>
+      <td>Works for single-epoch images. Does not work for co-adds since that metadata is not available.</td>
     </tr>
     <tr>
       <td><strong>TIMERES</strong></td>
@@ -188,7 +200,7 @@ The service frontend providing the SIAv2 API will use the FastAPI framework.
       <td>string<br><strong>case-insensitive</strong></td>
       <td>obs_publisher_did</td>
       <td>As expected;<br><strong>critical MVP capability</strong>.</td>
-      <td>Maps to UUID and some indication of the repository identity.<br>Must be usable to construct query URLs referring to specific images.<br>Contrary to the nudge in the ObsCore spec, we probably want the same ID to work across multiple sites.</td>
+      <td>IVO identifier will map to Butler dataset UUID within a named butler repository. A dataset can exist in multiple repositories if transferred.<br>Must be usable to construct query URLs referring to specific images.<br>Contrary to the nudge in the ObsCore spec, we probably want the same ID to work across multiple sites.</td>
     </tr>
     <tr>
       <td><strong>COLLECTION</strong></td>
@@ -202,35 +214,35 @@ The service frontend providing the SIAv2 API will use the FastAPI framework.
       <td>string<br>case-sensitive</td>
       <td>facility_name</td>
       <td>Intent is to distinguish real and simulated data here</td>
-      <td>Exact string values still to be finalized.<br>Mapped from Butler instrument.</td>
+      <td>Uses [AAS facility keywords](https://journals.aas.org/facility-keywords/). Mapped from Butler instrument.</td>
     </tr>
     <tr>
       <td><strong>INSTRUMENT</strong></td>
       <td>string<br>case-sensitive</td>
       <td>instrument_name</td>
       <td>Functions in the obvious way</td>
-      <td>Exact string values still to be finalized.<br>Mapped from Butler instrument.</td>
+      <td>Uses Butler instrument names.</td>
     </tr>
     <tr>
       <td><strong>DPTYPE</strong></td>
       <td>string, taken from limited vocabulary<br>case-sensitive</td>
       <td>dataproduct_type</td>
       <td>Strictly speaking only "image" and "cube" are meaningful; the other ObsCore dataproduct types may become usable in a future "DAP" evolution of SIAv2. At present we don’t have "cube" data at all.</td>
-      <td>Mapped from dataset type</td>
+      <td>Mapped from dataset type via configuration.</td>
     </tr>
     <tr>
       <td><strong>CALIB</strong></td>
       <td>Integer between 0 and 4</td>
       <td>calib_level</td>
       <td>Roughly: 1: raw, 2: calexp, 3: everything else</td>
-      <td>Mapped from dataset type</td>
+      <td>Mapped from dataset type via configuration.</td>
     </tr>
     <tr>
       <td><strong>TARGET</strong></td>
       <td>string<br>case-sensitive</td>
       <td>target_name</td>
       <td>TBD; perhaps initially:<br>Returns nothing, if specified?<br>Is it possible to link to a scheduler concept?<br>(E.g., the original "field center" concept, or perhaps just a broad category meaning something like "main survey" vs. "DDF" vs. one of the "extensions" like the NES?)<br>Perhaps this is only meaningful for TOO observations?</td>
-      <td>?</td>
+      <td>Butler has target name for single-epoch images. No target name for coadds. Tract/patch coordinate is equivalent.</td>
     </tr>
     <tr>
       <td><strong>FORMAT</strong></td>
@@ -243,8 +255,8 @@ The service frontend providing the SIAv2 API will use the FastAPI framework.
       <td><strong>MAXREC</strong></td>
       <td>Non-negative integer</td>
       <td>N/A</td>
-      <td>Overflow indicator must be set if value is positive and the query result is <strong>actually</strong> truncated.<br>Normal implementations add 1 to the value, execute the query with…</td>
-      <td>Does Butler queryDatasets() have an option equivalent to a TOP or LIMIT clause in SQL?<br>Apparently not?</td>
+      <td>Overflow indicator must be set if value is positive and the query result is <strong>actually</strong> truncated.</td>
+      <td>Implemented in dax_obscore.</td>
     </tr>
   </tbody>
 </table>
@@ -277,20 +289,21 @@ Note: The API params need to be case-insensitive to follow the IVOA recommendati
 
 **Response (Success)**:
 
-**HTTP status code**:  200 (OK) 
+**HTTP status code**:  200 (OK)
 
 **Content-Type**: application/x-votable+xml
 
-**Content**: 
+**Content**:
 
 The content of a successful query is a table consistent with ObsTAP responses.
-The response should contain all the required ObsTAP fields and may contain additional fields outside the defined ObsTAP data model. An initial set of metadata fields identified as the minimum list include: s_ra , s_dec , s_region , access_url , and access_format.
+The response should contain all the required ObsTAP fields and may contain additional fields outside the defined ObsTAP data model.
+An initial set of metadata fields identified as the minimum list include: s_ra , s_dec , s_region , access_url , and access_format.
 However this may require further investigation.
 
 Regarding returning datalinks in the response, relevant here is the following section from the spec:
 
 <em>
-If the provider implements a DataLink service for the data being found via SIA, the {query} response should include a description for invoking the DataLink service, usually using values from the obs_publisher_did column. 
+If the provider implements a DataLink service for the data being found via SIA, the {query} response should include a description for invoking the DataLink service, usually using values from the obs_publisher_did column.
 
 If the data provider implements a DataLink service for the data being found via the SIA {query} capability, they may put a URL to invoke the DataLink {links} capability (with ID parameter and value) in the access_url column; if they do this, they must also put the standard DataLink MIME type [9] in the access_format column.
 </em>
@@ -299,7 +312,7 @@ To indicate that this is a URL to a DataLink service, the access_format column i
 
 **Response (Failure)**:
 
-**HTTP status code**:  200 (OK) 
+**HTTP status code**:  200 (OK)
 
 **Content-Type**: application/x-votable+xml
 
@@ -308,9 +321,9 @@ To indicate that this is a URL to a DataLink service, the access_format column i
 A failed query should produce a response where the file format matches the requested format.
 The possible error codes are:
 
-- **UsageFault**: Invalid input (e.g. invalid input parameter value) 
-- **TransientFault**: Service is not currently able to function 
-- **FatalFault**: Service cannot perform requested action 
+- **UsageFault**: Invalid input (e.g., invalid input parameter value)
+- **TransientFault**: Service is not currently able to function
+- **FatalFault**: Service cannot perform requested action
 - **DefaultFault**: General error (not covered above)
 
 
@@ -322,7 +335,7 @@ The possible error codes are:
 
 **Response**:
 
-**HTTP status code**:  200 (OK) 
+**HTTP status code**:  200 (OK)
 
 **Content**: VOSI-availability XML content describing the status of the availability of the service.
 
@@ -335,16 +348,17 @@ The possible error codes are:
 </availability>
 ```
 
-Assuming the SIAv2 service is running without issues the availability endpoint should in theory always respond with available=true. However as the service depends on Butler being available and able to fetch images, one possibility here is to have the availability status be generated through a health check of the Butler client/server connection & repository. This assumes a health-check endpoint being available on the server which may be a part of a future improvement rather than the initial implementation.
+Assuming the SIAv2 service is running without issues the availability endpoint should in theory always respond with `available=true`. However, as the service depends on Butler being available and able to fetch images, one possibility here is to have the availability status be generated through a health check of the Butler client/server connection & repository.
+This assumes a health-check endpoint being available on the server which may be a part of a future improvement rather than the initial implementation.
 
 ### 6.3 Capabilities
 
 **Endpoint**: /capabilities
 **HTTP Method**: GET
 **Response**:
-**HTTP status code**:  200 (OK) 
-**Content**: 
-List the capabilities of the service in the standard VOSI capabilities XML format. 
+**HTTP status code**:  200 (OK)
+**Content**:
+List the capabilities of the service in the standard VOSI capabilities XML format.
 
 **Example**:
 
@@ -379,13 +393,14 @@ In this initial iteration we will not be implementing the /examples (DALI-exampl
 
 ### 6.5 Other Result Formats
 
-The result format will initially be VOTable, but may be extended to support additional formats in the future. The implementation should support a plugin architecture where different formats can be plugged in and added with minimal changes to existing code.
+The result format will initially be VOTable, but may be extended to support additional formats in the future.
+The implementation should support a plugin architecture where different formats can be plugged in and added with minimal changes to existing code.
 
 ### 6.6 Service Self-Description
 
 The SIAv2 implementation will include service self-descriptions with the VOTable response, which include information and descriptions of allowed ranges and values for certain parameters.
-Core examples where this will be useful in describing BAND (i.e. u/g/r/l/z/y) & COLLECTION (all available or just the “publicized”).
-To obtain a self-description VOTable response, clients can specify <em>MAXREC</em>=0.
+Core examples where this will be useful in describing BAND (i.e., u/g/r/l/z/y) & COLLECTION (all available or just the “publicized”).
+To obtain a self-description VOTable response, clients can specify `MAXREC=0`.
 
 ## 7. Obscore over dax_obscore API
 
@@ -424,7 +439,7 @@ def siav2_query(
 Note: This API is subject to change and may be extended in the future.
 
 The SIAv2Parameters model encapsulates all possible SIAv2 Query parameters as described in the specification, with all the query specific parameters (excluding MAXREC) being an Iterable to allow querying on multiple values for a given parameter.
-There will be a mapping task on the FastAPI application, as the app has to take in the parameters as "Query" types and create an SIAv2Parameters instance to pass on to the dax_obscore query API. 
+There will be a mapping task on the FastAPI application, as the app has to take in the parameters as "Query" types and create an SIAv2Parameters instance to pass on to the dax_obscore query API.
 
 
 ## 8. Example Query
@@ -569,13 +584,13 @@ JIRA Issues:
 - https://rubinobs.atlassian.net/browse/DM-45860
 
 Other technotes for reference:
-- https://dmtn-238.lsst.io/
-- https://dmtn-208.lsst.io/
+- https://dmtn-238.lsst.io/ {cite:p}`DMTN-238`
+- https://dmtn-208.lsst.io/ {cite:p}`DMTN-208`
 
 Github repos:
 - https://github.com/lsst-dm/dax_obscore
 - https://github.com/lsst-sqre/safir
 
-
-
-
+```{bibliography}
+  :style: lsst_aa
+```
