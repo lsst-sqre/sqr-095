@@ -6,6 +6,7 @@ In this technote we describe a proposed design for implementing an IVOA Simple I
 
 ## 1. Introduction
 
+The IVOA Simple Image Access version 2.0 protocol {cite:p}`2015ivoa.spec.1223D` provides a simple way to access image resources without needing to understand a query language.
 The existing CADC-based implementation which uses the ObsCore table is limited by the fact that QServ does not support certain ADQL functions required by the implementation, specifically the <em>INTERSECTS</em> function.
 This alternative approach circumvents this by using the [Butler](https://github.com/lsst/daf_butler) {cite:p}`2022SPIE12189E..11J` & [dax_obscore](https://github.com/lsst-dm/dax_obscore) package to generate the links for a given query without requiring access through the [ObsCore](https://www.ivoa.net/documents/ObsCore/) table.
 This has several potential benefits including performance, simplicity & decoupling of the various components, allowing Butler changes to take immediate effect and appear in the ObsCore results, without having to be first propagated to the <em>ivoa.ObsCore</em> Table.
