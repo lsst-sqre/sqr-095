@@ -143,7 +143,7 @@ The service frontend providing the SIAv2 API will use the FastAPI framework.
       <td>Units: meters<br>Can be a single value or a value pair.<br>+Inf/-Inf must be supported in pairs.</td>
       <td>em_min, em_max</td>
       <td>As expected;<br><strong>critical MVP capability</strong>.</td>
-      <td>Typically not explicitly available; mapped from filter band.<br>Expecting to use 50%-throughput points of the filter curves, but...</td>
+      <td>Butler understands filter name for single-epoch images and bands for co-adds. Configuration maps wavelengths to filter and thence to band.</td>
     </tr>
     <tr>
       <td><strong>TIME</strong></td>
@@ -185,7 +185,7 @@ The service frontend providing the SIAv2 API will use the FastAPI framework.
       <td>Units: seconds<br>Must be a value pair.<br>+Inf/-Inf must be supported.</td>
       <td>t_exptime</td>
       <td>Should work as expected.</td>
-      <td>Unclear whether this is directly queryable. <a href="https://rubinobs.atlassian.net/wiki/people/63e809f7db4f715c97259960?ref=confluence">Tim Jenness</a>?</td>
+      <td>Works for single-epoch images. Does not work for co-adds since that metadata is not available.</td>
     </tr>
     <tr>
       <td><strong>TIMERES</strong></td>
@@ -199,7 +199,7 @@ The service frontend providing the SIAv2 API will use the FastAPI framework.
       <td>string<br><strong>case-insensitive</strong></td>
       <td>obs_publisher_did</td>
       <td>As expected;<br><strong>critical MVP capability</strong>.</td>
-      <td>Maps to UUID and some indication of the repository identity.<br>Must be usable to construct query URLs referring to specific images.<br>Contrary to the nudge in the ObsCore spec, we probably want the same ID to work across multiple sites.</td>
+      <td>IVO identifier will map to Butler dataset UUID within a named butler repository. A dataset can exist in multiple repositories if transferred.<br>Must be usable to construct query URLs referring to specific images.<br>Contrary to the nudge in the ObsCore spec, we probably want the same ID to work across multiple sites.</td>
     </tr>
     <tr>
       <td><strong>COLLECTION</strong></td>
@@ -213,35 +213,35 @@ The service frontend providing the SIAv2 API will use the FastAPI framework.
       <td>string<br>case-sensitive</td>
       <td>facility_name</td>
       <td>Intent is to distinguish real and simulated data here</td>
-      <td>Exact string values still to be finalized.<br>Mapped from Butler instrument.</td>
+      <td>Uses [AAS facility keywords](https://journals.aas.org/facility-keywords/). Mapped from Butler instrument.</td>
     </tr>
     <tr>
       <td><strong>INSTRUMENT</strong></td>
       <td>string<br>case-sensitive</td>
       <td>instrument_name</td>
       <td>Functions in the obvious way</td>
-      <td>Exact string values still to be finalized.<br>Mapped from Butler instrument.</td>
+      <td>Uses Butler instrument names.</td>
     </tr>
     <tr>
       <td><strong>DPTYPE</strong></td>
       <td>string, taken from limited vocabulary<br>case-sensitive</td>
       <td>dataproduct_type</td>
       <td>Strictly speaking only "image" and "cube" are meaningful; the other ObsCore dataproduct types may become usable in a future "DAP" evolution of SIAv2. At present we don’t have "cube" data at all.</td>
-      <td>Mapped from dataset type</td>
+      <td>Mapped from dataset type via configuration.</td>
     </tr>
     <tr>
       <td><strong>CALIB</strong></td>
       <td>Integer between 0 and 4</td>
       <td>calib_level</td>
       <td>Roughly: 1: raw, 2: calexp, 3: everything else</td>
-      <td>Mapped from dataset type</td>
+      <td>Mapped from dataset type via configuration.</td>
     </tr>
     <tr>
       <td><strong>TARGET</strong></td>
       <td>string<br>case-sensitive</td>
       <td>target_name</td>
       <td>TBD; perhaps initially:<br>Returns nothing, if specified?<br>Is it possible to link to a scheduler concept?<br>(E.g., the original "field center" concept, or perhaps just a broad category meaning something like "main survey" vs. "DDF" vs. one of the "extensions" like the NES?)<br>Perhaps this is only meaningful for TOO observations?</td>
-      <td>?</td>
+      <td>Butler has target name for single-epoch images. No target name for coadds. Tract/patch coordinate is equivalent.</td>
     </tr>
     <tr>
       <td><strong>FORMAT</strong></td>
@@ -254,8 +254,8 @@ The service frontend providing the SIAv2 API will use the FastAPI framework.
       <td><strong>MAXREC</strong></td>
       <td>Non-negative integer</td>
       <td>N/A</td>
-      <td>Overflow indicator must be set if value is positive and the query result is <strong>actually</strong> truncated.<br>Normal implementations add 1 to the value, execute the query with…</td>
-      <td>Does Butler queryDatasets() have an option equivalent to a TOP or LIMIT clause in SQL?<br>Apparently not?</td>
+      <td>Overflow indicator must be set if value is positive and the query result is <strong>actually</strong> truncated.</td>
+      <td>Implemented in dax_obscore.</td>
     </tr>
   </tbody>
 </table>
